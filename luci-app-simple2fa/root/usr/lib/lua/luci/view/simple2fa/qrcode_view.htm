@@ -1,0 +1,33 @@
+<%
+    local util = require "luci.util"
+    local url = self.otp_url or ""
+    local svg = ""
+
+    if #url > 0 then
+        local cmd = string.format("qrencode --type=SVG --output=- %s", util.shellquote(url))
+        local f = io.popen(cmd)
+        if f then
+            svg = f:read("*a")
+            f:close()
+            if not (svg and svg:match("^%s*<svg")) then
+                svg = ""
+            end
+        end
+    end
+%>
+
+<div class="cbi-value">
+    <label class="cbi-value-title"><%=self.title%></label>
+    <div class="cbi-value-field">
+        <div style="background: white; padding: 10px; display: inline-block; border-radius: 5px;">
+            <% if svg and #svg > 0 then %>
+                <%=svg%>
+            <% else %>
+                <div class="cbi-section-error">二维码生成失败或未配置 URL</div>
+            <% end %>
+        </div>
+        <% if self.description then %>
+            <div class="cbi-value-description"><%=self.description%></div>
+        <% end %>
+    </div>
+</div>

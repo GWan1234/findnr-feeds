@@ -1,0 +1,111 @@
+#!/usr/bin/env ucode
+'use strict';
+
+// 引入必要的库，增加了 popen 用于执行系统命令
+import { stdin, stdout, popen } from 'fs';
+import dispatch from 'luci.dispatcher';
+import request from 'luci.http';
+
+// 初始化变量
+const input_bufsize = 4096;
+let content_len = +getenv('CONTENT_LENGTH') || 0;
+let buffer = null;
+let buffer_pos = 0;
+
+// ==========================================================
+// 🛡️ 2FA 拦截核心逻辑 (开始)
+// ==========================================================
+
+// 1. 只拦截小体积的 POST 请求 (防止拦截文件上传导致内存溢出)
+if (getenv('REQUEST_METHOD') == 'POST' && content_len > 0 && content_len < 10240) {
+    // 读取请求体到内存
+    buffer = stdin.read(content_len);
+    
+    // 2. 简单的正则匹配，检查是否是 root 登录
+    // 你的浏览器 payload 是: luci_username=root
+    let user_match = match(buffer, /luci_username=([^&]+)/);
+    
+    if (user_match && user_match[1] == 'root') {
+        // 3. 检查开关状态 (调用 uci 命令)
+        let p = popen('uci get simple2fa.global.enabled');
+        let enabled = p.read('all');
+        p.close();
+        
+        // 注意：命令输出通常带换行符，需要处理
+        if (enabled && replace(enabled, "\n", "") == '1') {
+            
+            // 4. 获取密钥
+            p = popen('uci get simple2fa.global.secret');
+            let secret = p.read('all');
+            p.close();
+            
+            if (secret) {
+                secret = replace(secret, "\n", "");
+                
+                // 5. 从请求体中提取 token (你前端 JS 提交的字段名)
+                let token_match = match(buffer, /token=([^&]*)/);
+                let token = token_match ? token_match[1] : "";
+                
+                // 6. 调用 oathtool 计算正确验证码
+                // -b: base32, --totp: 算法, -d 6: 6位
+                p = popen(`oathtool -b --totp -d 6 '${secret}'`);
+                let correct_code = p.read('all');
+                p.close();
+                
+                if (correct_code) {
+                    correct_code = replace(correct_code, "\n", "");
+                    
+                    // 7. 最终比对
+                    if (token != correct_code) {
+                        // ❌ 验证失败：直接终止请求
+                        print("Status: 403 Forbidden\r\n");
+                        print("Content-Type: text/plain; charset=utf-8\r\n\r\n");
+                        print("🚫 二次验证失败 (2FA Failed)\n请检查动态码是否正确。");
+                        exit(0);
+                    }
+                }
+            }
+        }
+    }
+}
+// ==========================================================
+// 🛡️ 2FA 拦截核心逻辑 (结束)
+// ==========================================================
+
+
+// 重写 read 函数：如果是登录请求，从内存 buffer 读取；否则从 stdin 流读取
+function read(len) {
+    if (buffer) {
+        // 从内存读取 (针对登录请求)
+        if (buffer_pos >= length(buffer)) return null;
+        
+        let chunk_len = min(length(buffer) - buffer_pos, len ?? input_bufsize);
+        let chunk = substr(buffer, buffer_pos, chunk_len);
+        buffer_pos += chunk_len;
+        return chunk;
+    } else {
+        // 原始流式读取 (针对文件上传等其他请求)
+        if (content_len <= 0) {
+            stdin.close();
+            return null;
+        }
+        
+        let chunk = stdin.read(min(content_len, len ?? input_bufsize, input_bufsize));
+        if (chunk == null) {
+            content_len = 0;
+            stdin.close();
+        } else {
+            content_len -= length(chunk);
+        }
+        return chunk;
+    }
+}
+
+function write(data) {
+    return stdout.write(data);
+}
+
+// 正常分发请求
+let req = request(getenv(), read, write);
+dispatch(req);
+req.close();
