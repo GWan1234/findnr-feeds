@@ -9,13 +9,13 @@ PKG_MAINTAINER:=findnr
 include $(INCLUDE_DIR)/package.mk
 
 define Package/luci-app-simple2fa
-  SECTION:=luci
-  CATEGORY:=LuCI
-  SUBMENU:=3. Applications
-  TITLE:=Simple 2FA (TOTP) for Login
+	SECTION:=luci
+	CATEGORY:=LuCI
+	SUBMENU:=3. Applications
+	TITLE:=Simple 2FA (TOTP) for Login
   # 依赖关系：oathtool 与 qrencode；并确保有 base32 可用
-  DEPENDS:=+oath-toolkit +qrencode +coreutils-base32
-  PKGARCH:=all
+	DEPENDS:=+oath-toolkit +qrencode +coreutils-base32
+	PKGARCH:=all
 endef
 
 define Package/luci-app-simple2fa/description
@@ -37,7 +37,7 @@ define Package/luci-app-simple2fa/install
 	$(CP) ./root/* $(1)/
 
   # 修正可执行权限，安装到标准 cgi-bin 路径
-  $(INSTALL_BIN) ./root/www/cgi/luci $(1)/www/cgi-bin/luci
+	$(INSTALL_BIN) ./root/www/cgi/luci $(1)/www/cgi-bin/luci
 endef
 
 $(eval $(call BuildPackage,luci-app-simple2fa))
