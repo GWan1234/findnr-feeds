@@ -4,13 +4,19 @@
     local svg = ""
 
     if #url > 0 then
-        local cmd = string.format("qrencode --type=SVG --output=- %s", util.shellquote(url))
+        -- 调试模式：使用绝对路径，并记录错误日志到 /tmp/
+        local cmd = string.format("/usr/bin/qrencode -t SVG -o - %s 2>/tmp/simple2fa_qr.err", util.shellquote(url))
         local f = io.popen(cmd)
         if f then
             svg = f:read("*a")
             f:close()
-            if not (svg and svg:match("^%s*<svg")) then
-                svg = ""
+            
+            -- 调试：记录输出内容
+            local dbg = io.open("/tmp/simple2fa_qr.out", "w")
+            if dbg then dbg:write(svg or "nil") dbg:close() end
+
+            if not (svg and svg:match("<svg")) then
+                svg = nil
             end
         end
     end

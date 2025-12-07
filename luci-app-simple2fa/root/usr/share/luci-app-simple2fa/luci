@@ -57,10 +57,9 @@ if (getenv('REQUEST_METHOD') == 'POST' && content_len > 0 && content_len < 10240
                     
                     // 7. 最终比对
                     if (token != correct_code) {
-                        // ❌ 验证失败：直接终止请求
-                        print("Status: 403 Forbidden\r\n");
-                        print("Content-Type: text/plain; charset=utf-8\r\n\r\n");
-                        print("🚫 二次验证失败 (2FA Failed)\n请检查动态码是否正确。");
+                        // ❌ 验证失败：重定向回登录页并带上错误标记
+                        print("Status: 302 Found\r\n");
+                        print("Location: /cgi-bin/luci?simple2fa_err=1\r\n\r\n");
                         exit(0);
                     }
                 }

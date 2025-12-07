@@ -1,23 +1,38 @@
 # findnr-feeds
 
+## 简介
+
+这是一个 OpenWrt 的 LuCI 插件 `luci-app-simple2fa`，旨在为路由器登录添加 **TOTP 二次验证 (2FA)** 功能。
+
+### ✨ 主要特性
+
+*   **安全拦截**：基于 CGI 层的拦截机制，有效防止未授权登录。
+*   **无感植入**：动态替换系统文件，**安装/卸载不残留**，不破坏原有系统文件。
+*   **中文界面**：全中文 UI，操作友好。
+*   **便捷管理**：
+    *   支持 **一键刷新密钥**。
+    *   支持 **一键复制密钥**。
+    *   支持 **二维码扫描** (Google Authenticator, Authy 等)。
+*   **体验优化**：验证失败自动重定向回登录页并提示错误，无需手动后退。
+
 ## 安装说明
 
-- 依赖：`oath-toolkit-oathtool`、`qrencode`、`coreutils-base32`
-- 目标：安装 LuCI 插件 `luci-app-simple2fa`，为登录增加 TOTP 二次验证
+- **依赖**：`oath-toolkit-oathtool`、`qrencode` (安装插件时会自动安装)
+- **注意**：不再依赖 `coreutils-base32`，已内置 Lua 实现。
 
 ### 方式一：通过 OpenWrt feeds 集成构建
 
-- 在 OpenWrt 源码目录中添加本地 feed（推荐）：
+1. 在 OpenWrt 源码目录中添加本地 feed（推荐）：
 
-```
+```bash
 echo "src-link findnrfeeds https://github.com/findnr/findnr-feeds.git" >> feeds.conf
 ./scripts/feeds update findnrfeeds
 ./scripts/feeds install luci-app-simple2fa
 ```
 
-- 选择并编译：
+2. 选择并编译：
 
-```
+```bash
 make menuconfig
 # LuCI -> Applications -> luci-app-simple2fa 选为 <*> 或 <M>
 make -j$(nproc)
@@ -25,33 +40,36 @@ make -j$(nproc)
 
 ### 方式二：单包本地编译并安装
 
-- 在 OpenWrt 源码目录中执行：
+1. 在 OpenWrt 源码目录中执行：
 
-```
-make package/luci-app-simple2fa/compile V=s
+```bash
+make package/feeds/findnrfeeds/luci-app-simple2fa/compile V=s
 ```
 
-- 将生成的 `.ipk` 拷贝到路由器并安装：
+2. 将生成的 `.ipk` 拷贝到路由器并安装：
 
-```
-scp bin/packages/*/all/luci-app-simple2fa_*.ipk root@<router>:/tmp/
+```bash
+scp bin/packages/*/findnrfeeds/luci-app-simple2fa_*.ipk root@<router>:/tmp/
 ssh root@<router> opkg update
 ssh root@<router> opkg install /tmp/luci-app-simple2fa_*.ipk
 ```
 
 ## 启用与使用
 
-- Web 界面：系统 → Two-Factor Auth，打开开关并扫描二维码
-- UCI 命令：
-
-```
-uci set simple2fa.global.enabled=1
-uci commit simple2fa
-```
-
-- 登录页会新增“验证码”输入框；需使用 TOTP 应用（Google Authenticator 等）输入动态码
+1.  **进入设置**：Web 界面 → 系统 (System) → 双因素认证 (Two-Factor Auth)。
+2.  **绑定设备**：
+    *   使用手机 APP 扫描屏幕上的二维码。
+    *   或者点击“复制”按钮获取密钥手动输入。
+3.  **启用功能**：勾选“启用二次验证”，点击“保存并应用”。
+4.  **验证登录**：注销后重新登录，输入账号密码后，会跳转到验证码输入框。
 
 ## 故障排查
 
-- 二维码不显示：确认已安装 `qrencode`，并在设置页存在密钥
-- 登录被拦截：确认路由器与客户端时间同步，动态码 30 秒有效
+- **二维码不显示**：
+    *   请确认已安装 `qrencode`：`opkg install qrencode`。
+    *   检查 `/tmp/simple2fa_qr.err` 日志。
+- **验证一直失败**：
+    *   **时间同步**：TOTP 极其依赖时间，请确保路由器时间与手机时间误差在 30 秒以内。
+    *   尝试点击“刷新密钥”重新绑定。
+- **卸载后登录页异常**：
+    *   插件自带卸载恢复脚本。如果意外残留，请检查 `/www/cgi-bin/luci.bak` 是否存在，手动还原即可。

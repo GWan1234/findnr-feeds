@@ -6,5 +6,5 @@ function index()
         return
     end
     
-    entry({"admin", "system", "simple2fa"}, cbi("simple2fa/settings"), _("Two-Factor Auth"), 60)
+    entry({"admin", "system", "simple2fa"}, cbi("simple2fa/settings"), _("二次验证"), 60)
 end

@@ -12,8 +12,8 @@ define Package/luci-app-simple2fa
 	CATEGORY:=LuCI
 	SUBMENU:=3. Applications
 	TITLE:=Simple 2FA (TOTP) for Login
-	# 修正依赖名：根据你的截图，改为 oath-toolkit 和 qrencode
-	DEPENDS:=+oath-toolkit +qrencode +coreutils-base32
+	# 修正依赖名：已移除 coreutils-base32，改用 Lua 生成密钥
+	DEPENDS:=+oath-toolkit +qrencode
 	PKGARCH:=all
 endef
 
@@ -30,14 +30,31 @@ endef
 define Package/luci-app-simple2fa/install
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
-	$(INSTALL_DIR) $(1)/www/cgi-bin
-	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/bootstrap/js
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/controller
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/simple2fa
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/simple2fa
+	# 创建 staging 目录
+	$(INSTALL_DIR) $(1)/usr/share/luci-app-simple2fa
 
-	# 复制文件
-	$(CP) ./root/* $(1)/
+	# 复制配置文件和 Lua 脚本
+	$(CP) ./root/etc $(1)/
+	$(CP) ./root/usr/lib $(1)/usr/
 
-	# 修正路径错误：原本写的是 cgi，这里必须是 cgi-bin
-	$(INSTALL_BIN) ./root/www/cgi-bin/luci $(1)/www/cgi-bin/luci
+	# 复制用于替换的源文件到 staging 目录
+	$(INSTALL_BIN) ./root/usr/share/luci-app-simple2fa/luci $(1)/usr/share/luci-app-simple2fa/luci
+	$(INSTALL_DATA) ./root/usr/share/luci-app-simple2fa/sysauth.js $(1)/usr/share/luci-app-simple2fa/sysauth.js
+endef
+
+define Package/luci-app-simple2fa/prerm
+#!/bin/sh
+# 卸载前恢复原文件
+if [ -f "/www/cgi-bin/luci.bak" ]; then
+	mv -f /www/cgi-bin/luci.bak /www/cgi-bin/luci
+fi
+if [ -f "/www/luci-static/resources/view/bootstrap/sysauth.js.bak" ]; then
+	mv -f /www/luci-static/resources/view/bootstrap/sysauth.js.bak /www/luci-static/resources/view/bootstrap/sysauth.js
+fi
+exit 0
 endef
 
 $(eval $(call BuildPackage,luci-app-simple2fa))

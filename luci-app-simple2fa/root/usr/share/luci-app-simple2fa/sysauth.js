@@ -3,12 +3,31 @@
 'require view';
 
 return view.extend({
-    render: function() {
+    render: function () {
         var form = document.querySelector('form');
         var btn = document.querySelector('button');
 
         // 1. 获取原来的输入框元素 (用户名、密码、按钮等)
         var inputFields = [].slice.call(document.querySelectorAll('section > *'));
+
+        // === 新增：检查 URL 是否包含错误标记 ===
+        if (window.location.search.indexOf('simple2fa_err=1') !== -1) {
+            var errDiv = document.createElement('div');
+            errDiv.className = 'alert-message error';
+            errDiv.innerText = _('验证码错误，请重试 (Invalid Verification Code)');
+            errDiv.style.marginBottom = '10px';
+
+            // 插入到表单最前面
+            if (inputFields.length > 0) {
+                inputFields.splice(0, 0, errDiv);
+            }
+
+            // 可选：清除 URL 中的参数，避免刷新后还在
+            if (history.replaceState) {
+                var newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+                history.replaceState({ path: newUrl }, '', newUrl);
+            }
+        }
 
         // 2. 创建你的 2FA 输入框
         var tokenDiv = document.createElement('div');
@@ -35,13 +54,13 @@ return view.extend({
         );
 
         // 回车键支持
-        form.addEventListener('keypress', function(ev) {
+        form.addEventListener('keypress', function (ev) {
             if (ev.key == 'Enter')
                 btn.click();
         });
 
         // === 关键修复：点击登录按钮时的处理 ===
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', function () {
             // A. 获取用户输入的验证码
             var tokenInput = tokenDiv.querySelector('input');
             var tokenValue = tokenInput ? tokenInput.value : '';
@@ -55,19 +74,19 @@ return view.extend({
             form.appendChild(hiddenInput);
 
             // C. 界面显示 "Logging in..."
-            dlg.querySelectorAll('*').forEach(function(node) { node.style.display = 'none' });
+            dlg.querySelectorAll('*').forEach(function (node) { node.style.display = 'none' });
             dlg.appendChild(E('div', { 'class': 'spinning' }, _('Logging in...')));
-            
+
             // D. 提交表单
             form.submit();
         });
 
         // 自动聚焦密码框
         var passInput = document.querySelector('input[type="password"]');
-        if(passInput) passInput.focus();
+        if (passInput) passInput.focus();
 
         return '';
     },
 
-    addFooter: function() {}
+    addFooter: function () { }
 });
