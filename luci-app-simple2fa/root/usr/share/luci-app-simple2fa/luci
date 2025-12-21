@@ -11,12 +11,16 @@ i18n_load('simple2fa');
 
 // 日志函数
 function log(msg) {
-    let f = open('/tmp/simple2fa.log', 'a');
-    if (f) {
-        f.write(`${new Date().toISOString()} - ${msg}\n`);
-        f.close();
-    }
+    try {
+        let f = open('/tmp/simple2fa.log', 'a');
+        if (f) {
+            f.write(`${new Date().toISOString()} - ${msg}\n`);
+            f.close();
+        }
+    } catch (e) { }
 }
+
+log("Simple2FA CGI started");
 
 // 初始化变量
 const input_bufsize = 4096;
@@ -26,50 +30,59 @@ let buffer_pos = 0;
 let response_buffer = "";
 let is_login_page = false;
 
+// Helper: Trim string
+function trim_str(s) {
+    return s ? replace(s, /^\s+|\s+$/g, "") : "";
+}
+
 // ==========================================================
 // 🛡️ 2FA 拦截核心逻辑 (开始)
 // ==========================================================
 
-// 1. 拦截 POST 登录请求
-if (getenv('REQUEST_METHOD') == 'POST' && content_len > 0 && content_len < 10240) {
-    buffer = stdin.read(content_len);
-    
-    let user_match = match(buffer, /luci_username=([^&]+)/);
-    if (user_match && user_match[1] == 'root') {
-        let p = popen('uci -q get simple2fa.global.enabled');
-        let enabled = trim(p.read('all'));
-        p.close();
-        
-        if (enabled == '1') {
-            p = popen('uci -q get simple2fa.global.secret');
-            let secret = trim(p.read('all'));
+try {
+    // 1. 拦截 POST 登录请求
+    if (getenv('REQUEST_METHOD') == 'POST' && content_len > 0 && content_len < 10240) {
+        buffer = stdin.read(content_len);
+
+        let user_match = match(buffer, /luci_username=([^&]+)/);
+        if (user_match && user_match[1] == 'root') {
+            let p = popen('uci -q get simple2fa.global.enabled');
+            let enabled = trim_str(p.read('all'));
             p.close();
-            
-            if (secret) {
-                let token_match = match(buffer, /token=([^&]*)/);
-                let token = token_match ? token_match[1] : "";
-                
-                p = popen(`oathtool -b --totp -d 6 '${secret}'`);
-                let correct_code = trim(p.read('all'));
+
+            if (enabled == '1') {
+                p = popen('uci -q get simple2fa.global.secret');
+                let secret = trim_str(p.read('all'));
                 p.close();
-                
-                if (correct_code && token != correct_code) {
-                    log(`2FA Blocked: user=root, input=${token}, correct=${correct_code}`);
-                    print("Status: 302 Found\r\n");
-                    print("Location: /cgi-bin/luci?simple2fa_err=1\r\n\r\n");
-                    exit(0);
+
+                if (secret) {
+                    let token_match = match(buffer, /token=([^&]*)/);
+                    let token = token_match ? token_match[1] : "";
+
+                    p = popen(`oathtool -b --totp -d 6 '${secret}'`);
+                    let correct_code = trim_str(p.read('all'));
+                    p.close();
+
+                    if (correct_code && token != correct_code) {
+                        log(`2FA Blocked: user=root, input=${token}, correct=${correct_code}`);
+                        print("Status: 302 Found\r\n");
+                        print("Location: /cgi-bin/luci?simple2fa_err=1\r\n\r\n");
+                        exit(0);
+                    }
+                    log(`2FA Success: user=root`);
                 }
-                log(`2FA Success: user=root`);
             }
         }
     }
-}
 
-// 2. 检测是否是登录页面 (GET 请求且无 stok)
-let query_string = getenv('QUERY_STRING') ?? "";
-if (getenv('REQUEST_METHOD') == 'GET' && index(query_string, 'stok=') == -1) {
-    is_login_page = true;
-    log(`Login page detected: QUERY_STRING=${query_string}`);
+    // 2. 检测是否是登录页面 (GET 请求且无 stok)
+    let query_string = getenv('QUERY_STRING') ?? "";
+    if (getenv('REQUEST_METHOD') == 'GET' && index(query_string, 'stok=') == -1) {
+        is_login_page = true;
+        log(`Login page detected: QUERY_STRING=${query_string}`);
+    }
+} catch (e) {
+    log(`Logic Error: ${e}`);
 }
 
 // ==========================================================
@@ -98,11 +111,9 @@ const simple2fa_inject_js = `
         tokenInput.style.cssText = passInput.style.cssText;
         tokenInput.style.marginTop = '10px';
         
-        // 针对 Argon 等主题的优化：寻找合适的容器
         var target = passInput;
         var parent = passInput.parentElement;
         
-        // 如果在 .input-group 中，则插入到 group 后面
         if (parent && parent.classList.contains('input-group')) {
             target = parent;
         }
@@ -114,7 +125,6 @@ const simple2fa_inject_js = `
         
         target.parentNode.insertBefore(wrapper, target.nextSibling);
         
-        // 错误提示
         if (window.location.search.indexOf('simple2fa_err=1') !== -1) {
             var errDiv = document.createElement('div');
             errDiv.style.cssText = 'color: #d9534f; background: #f2dede; border: 1px solid #ebccd1; padding: 10px; margin-bottom: 15px; border-radius: 4px; text-align: center;';
@@ -171,7 +181,7 @@ try {
 if (is_login_page && length(response_buffer) > 0) {
     let inject_pos = index(response_buffer, '</body>');
     if (inject_pos == -1) inject_pos = index(response_buffer, '</html>');
-    
+
     if (inject_pos != -1) {
         stdout.write(substr(response_buffer, 0, inject_pos));
         stdout.write(simple2fa_inject_js);
