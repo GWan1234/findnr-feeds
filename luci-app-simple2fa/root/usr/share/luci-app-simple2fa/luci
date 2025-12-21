@@ -1,14 +1,22 @@
 #!/usr/bin/env ucode
 'use strict';
 
-// 引入必要的库
-import { stdin, stdout, popen } from 'fs';
+import { stdin, stdout, popen, open } from 'fs';
 import dispatch from 'luci.dispatcher';
 import request from 'luci.http';
 import { load as i18n_load, translate as _ } from 'luci.i18n';
 
 // 初始化 i18n
 i18n_load('simple2fa');
+
+// 日志函数
+function log(msg) {
+    let f = open('/tmp/simple2fa.log', 'a');
+    if (f) {
+        f.write(`${new Date().toISOString()} - ${msg}\n`);
+        f.close();
+    }
+}
 
 // 初始化变量
 const input_bufsize = 4096;
@@ -22,85 +30,65 @@ let is_login_page = false;
 // 🛡️ 2FA 拦截核心逻辑 (开始)
 // ==========================================================
 
-// 1. 只拦截小体积的 POST 请求 (防止拦截文件上传导致内存溢出)
+// 1. 拦截 POST 登录请求
 if (getenv('REQUEST_METHOD') == 'POST' && content_len > 0 && content_len < 10240) {
-    // 读取请求体到内存
     buffer = stdin.read(content_len);
     
-    // 2. 简单的正则匹配，检查是否是 root 登录
     let user_match = match(buffer, /luci_username=([^&]+)/);
-    
     if (user_match && user_match[1] == 'root') {
-        // 3. 检查开关状态
-        let p = popen('uci get simple2fa.global.enabled');
-        let enabled = p.read('all');
+        let p = popen('uci -q get simple2fa.global.enabled');
+        let enabled = trim(p.read('all'));
         p.close();
         
-        if (enabled && replace(enabled, "\n", "") == '1') {
-            // 4. 获取密钥
-            p = popen('uci get simple2fa.global.secret');
-            let secret = p.read('all');
+        if (enabled == '1') {
+            p = popen('uci -q get simple2fa.global.secret');
+            let secret = trim(p.read('all'));
             p.close();
             
             if (secret) {
-                secret = replace(secret, "\n", "");
-                
-                // 5. 从请求体中提取 token
                 let token_match = match(buffer, /token=([^&]*)/);
                 let token = token_match ? token_match[1] : "";
                 
-                // 6. 调用 oathtool 计算正确验证码
                 p = popen(`oathtool -b --totp -d 6 '${secret}'`);
-                let correct_code = p.read('all');
+                let correct_code = trim(p.read('all'));
                 p.close();
                 
-                if (correct_code) {
-                    correct_code = replace(correct_code, "\n", "");
-                    
-                    // 7. 最终比对
-                    if (token != correct_code) {
-                        print("Status: 302 Found\r\n");
-                        print("Location: /cgi-bin/luci?simple2fa_err=1\r\n\r\n");
-                        exit(0);
-                    }
+                if (correct_code && token != correct_code) {
+                    log(`2FA Blocked: user=root, input=${token}, correct=${correct_code}`);
+                    print("Status: 302 Found\r\n");
+                    print("Location: /cgi-bin/luci?simple2fa_err=1\r\n\r\n");
+                    exit(0);
                 }
+                log(`2FA Success: user=root`);
             }
         }
     }
 }
 
-// 检测是否是登录页面请求 (GET 请求且无 stok 参数)
+// 2. 检测是否是登录页面 (GET 请求且无 stok)
 let query_string = getenv('QUERY_STRING') ?? "";
-let request_uri = getenv('REQUEST_URI') ?? "";
-if (getenv('REQUEST_METHOD') == 'GET' && 
-    (request_uri == '/cgi-bin/luci' || request_uri == '/cgi-bin/luci/' || 
-     index(query_string, 'simple2fa_err') != -1) &&
-    index(query_string, 'stok=') == -1) {
+if (getenv('REQUEST_METHOD') == 'GET' && index(query_string, 'stok=') == -1) {
     is_login_page = true;
+    log(`Login page detected: QUERY_STRING=${query_string}`);
 }
 
 // ==========================================================
 // 🛡️ 2FA 拦截核心逻辑 (结束)
 // ==========================================================
 
-// 通用 2FA 输入框注入 JS (适用于所有主题)
+// 通用 2FA 输入框注入 JS
 const simple2fa_inject_js = `
 <script>
 (function() {
-    // 等待 DOM 加载完成
     function injectTokenField() {
-        // 查找密码输入框
         var passInput = document.querySelector('input[type="password"][name="luci_password"]');
         if (!passInput) {
-            // 如果还没找到，稍后重试
-            setTimeout(injectTokenField, 100);
+            setTimeout(injectTokenField, 200);
             return;
         }
         
-        // 检查是否已经注入过
         if (document.querySelector('input[name="token"]')) return;
         
-        // 创建验证码输入框
         var tokenInput = document.createElement('input');
         tokenInput.type = 'text';
         tokenInput.name = 'token';
@@ -110,48 +98,38 @@ const simple2fa_inject_js = `
         tokenInput.style.cssText = passInput.style.cssText;
         tokenInput.style.marginTop = '10px';
         
-        // 找到密码框的父容器并插入
+        // 针对 Argon 等主题的优化：寻找合适的容器
+        var target = passInput;
         var parent = passInput.parentElement;
-        if (parent) {
-            // 尝试找到包含密码框的 div 容器
-            var container = parent;
-            while (container && container.tagName !== 'FORM' && !container.classList.contains('input-container') && !container.classList.contains('cbi-value')) {
-                if (container.nextElementSibling) break;
-                container = container.parentElement;
-            }
-            
-            // 创建一个包装 div
-            var wrapper = document.createElement('div');
-            wrapper.style.marginTop = '10px';
-            wrapper.appendChild(tokenInput);
-            
-            // 插入到密码框容器后面
-            if (parent.nextElementSibling) {
-                parent.parentElement.insertBefore(wrapper, parent.nextElementSibling);
-            } else {
-                parent.parentElement.appendChild(wrapper);
-            }
+        
+        // 如果在 .input-group 中，则插入到 group 后面
+        if (parent && parent.classList.contains('input-group')) {
+            target = parent;
         }
         
-        // 显示错误信息 (如果有)
+        var wrapper = document.createElement('div');
+        wrapper.className = 'luci-2fa-wrapper';
+        wrapper.style.marginTop = '10px';
+        wrapper.appendChild(tokenInput);
+        
+        target.parentNode.insertBefore(wrapper, target.nextSibling);
+        
+        // 错误提示
         if (window.location.search.indexOf('simple2fa_err=1') !== -1) {
             var errDiv = document.createElement('div');
-            errDiv.style.cssText = 'color: #d9534f; background: #f2dede; border: 1px solid #ebccd1; padding: 10px; margin-bottom: 15px; border-radius: 4px;';
+            errDiv.style.cssText = 'color: #d9534f; background: #f2dede; border: 1px solid #ebccd1; padding: 10px; margin-bottom: 15px; border-radius: 4px; text-align: center;';
             errDiv.innerText = '${_("Invalid 2FA token, please try again")}';
             
             var form = document.querySelector('form');
-            if (form) {
-                form.insertBefore(errDiv, form.firstChild);
-            }
+            if (form) form.insertBefore(errDiv, form.firstChild);
             
-            // 清除 URL 参数
             if (history.replaceState) {
-                history.replaceState(null, '', window.location.pathname);
+                var clean_url = window.location.protocol + "//" + window.location.host + window.location.pathname;
+                history.replaceState(null, '', clean_url);
             }
         }
     }
     
-    // 页面加载后执行
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', injectTokenField);
     } else {
@@ -161,7 +139,6 @@ const simple2fa_inject_js = `
 </script>
 `;
 
-// 重写 read 函数
 function read(len) {
     if (buffer) {
         if (buffer_pos >= length(buffer)) return null;
@@ -169,23 +146,10 @@ function read(len) {
         let chunk = substr(buffer, buffer_pos, chunk_len);
         buffer_pos += chunk_len;
         return chunk;
-    } else {
-        if (content_len <= 0) {
-            stdin.close();
-            return null;
-        }
-        let chunk = stdin.read(min(content_len, len ?? input_bufsize, input_bufsize));
-        if (chunk == null) {
-            content_len = 0;
-            stdin.close();
-        } else {
-            content_len -= length(chunk);
-        }
-        return chunk;
     }
+    return stdin.read(len ?? input_bufsize);
 }
 
-// 重写 write 函数：如果是登录页面，缓存响应并注入 JS
 function write(data) {
     if (is_login_page) {
         response_buffer += data;
@@ -194,22 +158,26 @@ function write(data) {
     return stdout.write(data);
 }
 
-// 正常分发请求
-let req = request(getenv(), read, write);
-dispatch(req);
-req.close();
+// 分发请求
+try {
+    let req = request(getenv(), read, write);
+    dispatch(req);
+    req.close();
+} catch (e) {
+    log(`Dispatch Error: ${e}`);
+}
 
-// 如果是登录页面，在 </body> 前注入 JS
+// 注入 JS
 if (is_login_page && length(response_buffer) > 0) {
-    // 在 </body> 或 </html> 前注入
     let inject_pos = index(response_buffer, '</body>');
     if (inject_pos == -1) inject_pos = index(response_buffer, '</html>');
     
     if (inject_pos != -1) {
-        let output = substr(response_buffer, 0, inject_pos) + simple2fa_inject_js + substr(response_buffer, inject_pos);
-        stdout.write(output);
+        stdout.write(substr(response_buffer, 0, inject_pos));
+        stdout.write(simple2fa_inject_js);
+        stdout.write(substr(response_buffer, inject_pos));
     } else {
-        // 没找到合适位置，直接追加
-        stdout.write(response_buffer + simple2fa_inject_js);
+        stdout.write(response_buffer);
+        stdout.write(simple2fa_inject_js);
     }
 }
