@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=Simple 2FA (TOTP) for Login
-LUCI_DEPENDS:=+oath-toolkit +qrencode +luci-base +luci-compat
+LUCI_DEPENDS:=+oath-toolkit +qrencode +luci-base +luci-compat +ucode +ucode-mod-fs
 LUCI_PKGARCH:=all
 
 PKG_VERSION:=1.0.0
