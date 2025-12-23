@@ -5,21 +5,55 @@
 START=99
 STOP=10
 
-# 目标文件
+# CGI 路径
 CGI_TARGET="/www/cgi-bin/luci"
-SYSAUTH_TARGET="/usr/lib/lua/luci/view/sysauth.htm"
-
-# 源文件 (我们的包)
 CGI_SOURCE="/usr/share/luci-app-simple2fa/luci"
 SYSAUTH_SOURCE="/usr/share/luci-app-simple2fa/sysauth.htm"
+
+# 动态检测主题模板路径 (从 UCI 读取当前主题)
+detect_sysauth_target() {
+	# 从 UCI 读取当前主题
+	# mediaurlbase 格式: /luci-static/bootstrap 或 /luci-static/argon
+	local mediaurlbase=$(uci -q get luci.main.mediaurlbase)
+	local theme_name=$(echo "$mediaurlbase" | sed -n 's|.*/luci-static/\([^/]*\).*|\1|p')
+	
+	# 默认 bootstrap
+	[ -z "$theme_name" ] && theme_name="bootstrap"
+	
+	log "检测到当前主题: $theme_name (mediaurlbase=$mediaurlbase)"
+	
+	# 优先使用当前主题的模板，fallback 到基础模板
+	local theme_path="/usr/lib/lua/luci/view/themes/${theme_name}/sysauth.htm"
+	local base_path="/usr/lib/lua/luci/view/sysauth.htm"
+	
+	if [ -e "$theme_path" ] || [ -e "${theme_path}.bak" ]; then
+		echo "$theme_path"
+		return 0
+	elif [ -e "$base_path" ] || [ -e "${base_path}.bak" ]; then
+		echo "$base_path"
+		return 0
+	fi
+	
+	echo ""
+	return 1
+}
 
 log() {
 	logger -t simple2fa "[init.d] $1"
 	echo "[simple2fa] $1"
 }
 
+
 start() {
 	log "========== START 被调用 =========="
+	
+	# 动态检测模板路径
+	local SYSAUTH_TARGET=$(detect_sysauth_target)
+	if [ -z "$SYSAUTH_TARGET" ]; then
+		log "错误: 未找到任何 sysauth.htm 模板"
+		SYSAUTH_TARGET="/usr/lib/lua/luci/view/sysauth.htm"
+	fi
+	log "检测到模板路径: $SYSAUTH_TARGET"
 	
 	local enabled=$(uci -q get simple2fa.global.enabled)
 	log "配置读取: simple2fa.global.enabled = '$enabled'"
@@ -91,6 +125,13 @@ start() {
 
 stop() {
 	log "========== STOP 被调用 =========="
+	
+	# 动态检测模板路径
+	local SYSAUTH_TARGET=$(detect_sysauth_target)
+	if [ -z "$SYSAUTH_TARGET" ]; then
+		SYSAUTH_TARGET="/usr/lib/lua/luci/view/sysauth.htm"
+	fi
+
 	
 	# === 1. 恢复 CGI ===
 	if [ -f "${CGI_TARGET}.bak" ]; then

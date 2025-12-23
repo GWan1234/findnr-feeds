@@ -111,9 +111,41 @@ function m.on_after_commit(self)
     
     -- 目标文件
     local CGI_TARGET = "/www/cgi-bin/luci"
-    local SYSAUTH_TARGET = "/usr/lib/lua/luci/view/sysauth.htm"
     local CGI_SOURCE = "/usr/share/luci-app-simple2fa/luci"
     local SYSAUTH_SOURCE = "/usr/share/luci-app-simple2fa/sysauth.htm"
+    
+    -- =====================================================
+    -- 动态检测当前主题并设置正确的模板路径
+    -- 从 UCI 读取 luci.main.mediaurlbase 获取当前主题
+    -- =====================================================
+    local fresh_uci = require("luci.model.uci").cursor()
+    local mediaurlbase = fresh_uci:get("luci", "main", "mediaurlbase") or ""
+    -- mediaurlbase 格式: /luci-static/bootstrap 或 /luci-static/argon
+    local theme_name = mediaurlbase:match("/luci%-static/([^/]+)") or "bootstrap"
+    
+    sys.call(string.format("logger -t simple2fa '[settings.lua] 当前主题: %s (from mediaurlbase=%s)'", 
+        theme_name, mediaurlbase))
+    
+    -- 构建可能的模板路径 (按优先级)
+    local SYSAUTH_TARGETS = {
+        string.format("/usr/lib/lua/luci/view/themes/%s/sysauth.htm", theme_name),  -- 当前主题
+        "/usr/lib/lua/luci/view/sysauth.htm"  -- 基础模板 (fallback)
+    }
+    
+    -- 找到实际存在的模板路径
+    local SYSAUTH_TARGET = nil
+    for _, path in ipairs(SYSAUTH_TARGETS) do
+        if fs.access(path) or fs.access(path .. ".bak") then
+            SYSAUTH_TARGET = path
+            sys.call(string.format("logger -t simple2fa '[settings.lua] 检测到模板: %s'", path))
+            break
+        end
+    end
+    
+    if not SYSAUTH_TARGET then
+        sys.call("logger -t simple2fa '[settings.lua] 错误: 未找到任何 sysauth.htm 模板'")
+        return
+    end
     
     -- 从新 cursor 读取配置
     local fresh_uci = require("luci.model.uci").cursor()
