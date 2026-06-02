@@ -37,7 +37,7 @@
 #### luci-app-vpnrss (VPN 订阅生成器)
 *   **订阅聚合**：将多个零散节点聚合为一个订阅链接。
 *   **多协议支持**：支持 `vmess`, `vless`, `trojan`, `ss`, `hysteria2`。
-*   **多客户端适配**：自动生成 **Clash**, **Sing-box**, **Surge**, **Passwall/SSR+ (Base64)** 格式配置。
+*   **多客户端适配**：自动生成 **Clash**, **Sing-box**, **Passwall/SSR+ (Base64)** 格式配置。
 *   **智能导入**：
     *   支持**批量导入**：在一个输入框内粘贴多条链接（逗号或换行分隔）。
     *   **智能命名**：自动为批量导入的节点添加序号（如 "香港 1", "香港 2"），避免重名。
@@ -46,7 +46,7 @@
 #### luci-app-cymonline (在线用户管理)
 *   **实时监控**：显示当前连接设备的 IP、MAC、主机名及实时上下行速率。
 *   **流量统计**：统计各设备的累计上传与下载流量。
-*   **限速管理**：基于 `tc` 和 `iptables` 实现对特定设备的带宽限制。
+*   **限速管理**：基于 `tc` 和 `nftables` 实现对特定设备的带宽限制。
 *   **连接控制**：支持一键断开或禁用特定设备的网络访问。
 
 ## 安装说明
@@ -58,7 +58,6 @@
 ```bash
 echo "src-git findnrfeeds https://github.com/findnr/findnr-feeds.git" >> feeds.conf
 ./scripts/feeds update findnrfeeds
-./scripts/feeds install luci-app-simple2fa
 ./scripts/feeds install luci-app-simple2fa
 ./scripts/feeds install cymfrp
 ./scripts/feeds install luci-app-cymfrpc
@@ -83,7 +82,6 @@ make -j$(nproc)
 1. 在 OpenWrt 源码目录中执行：
 
 ```bash
-make package/feeds/findnrfeeds/luci-app-simple2fa/compile V=s
 make package/feeds/findnrfeeds/luci-app-simple2fa/compile V=s
 make package/feeds/findnrfeeds/cymfrp/compile V=s
 make package/feeds/findnrfeeds/luci-app-cymfrpc/compile V=s
