@@ -60,6 +60,14 @@ define Package/cymfrps/install
 	find $(PKG_BUILD_DIR) -name frps -type f -exec $(INSTALL_BIN) {} $(1)/usr/bin/cymfrps \;
 endef
 
+define Build/Prepare
+	$(call Build/Prepare/Default)
+	mkdir -p $(PKG_BUILD_DIR)/web/frpc/dist
+	mkdir -p $(PKG_BUILD_DIR)/web/frps/dist
+	touch $(PKG_BUILD_DIR)/web/frpc/dist/.keep
+	touch $(PKG_BUILD_DIR)/web/frps/dist/.keep
+endef
+
 $(eval $(call BuildPackage,cymfrpc))
 $(eval $(call BuildPackage,cymfrps))
 
