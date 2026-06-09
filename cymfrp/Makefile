@@ -64,8 +64,8 @@ define Build/Prepare
 	$(call Build/Prepare/Default)
 	mkdir -p $(PKG_BUILD_DIR)/web/frpc/dist
 	mkdir -p $(PKG_BUILD_DIR)/web/frps/dist
-	touch $(PKG_BUILD_DIR)/web/frpc/dist/.keep
-	touch $(PKG_BUILD_DIR)/web/frps/dist/.keep
+	echo "dummy" > $(PKG_BUILD_DIR)/web/frpc/dist/index.html
+	echo "dummy" > $(PKG_BUILD_DIR)/web/frps/dist/index.html
 endef
 
 $(eval $(call BuildPackage,cymfrpc))
