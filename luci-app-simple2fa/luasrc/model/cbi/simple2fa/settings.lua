@@ -51,7 +51,7 @@ s:option(Flag, "enabled", translate("Enable Two-Factor Auth"))
 local vcode = s:option(Value, "verify_code", translate("Verification Code"))
 vcode.description = translate("To prevent locking yourself out, you must input a valid 6-digit code before enabling.")
 vcode.datatype = "uinteger"
-vcode.depends("enabled", "1")
+vcode:depends("enabled", "1")
 vcode.rmempty = true
 
 function vcode.validate(self, value, section)
