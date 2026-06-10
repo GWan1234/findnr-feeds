@@ -2,85 +2,54 @@
 
 ## 简介
 
-- luci-app-simple2fa，旨在为路由器登录添加 **TOTP 二次验证 (2FA)** 功能，这样在做内网穿透增加了一层安全防护。
-- luci-app-cymfrpc (客户端)` , **多实例管理**：支持同时运行多个 frpc 进程，互不干扰。
-- luci-app-cymfrps (服务端)，支持同时运行多个 frps 服务端进程。
-- luci-app-vpnrss (订阅生成器)，支持多协议聚合与转换 (Clash/Sing-box/Hysteria2)。
-- luci-app-cymonline (在线用户管理)，支持实时查看在线用户、流量监控及限速管理。
+本仓库包含了一系列为 OpenWrt (特别是新版 LuCI) 量身定制的高性能、高实用性插件，旨在增强路由器的安全防护、内网穿透能力、订阅转换以及网络流量精细化管理。
 
-### ✨ 主要特性
+*   **luci-app-simple2fa**：为路由器 Web 登录界面强制添加 **TOTP 二次验证 (2FA)**。特别适合开启了公网访问或内网穿透的用户，提供金融级的安全屏障。
+*   **luci-app-cymfrpc**：Frp 客户端管理器。支持多实例并行运行，支持纯文本直接粘贴 `ini/toml/yaml` 格式配置。
+*   **luci-app-cymfrps**：Frp 服务端管理器。支持多实例运行，便于集中式穿透节点中转。
+*   **luci-app-vpnrss**：VPN 订阅聚合与转换生成器。支持多协议节点聚合，可自动输出为 Clash、Sing-box、Surge 或 Base64 订阅链接。
+*   **luci-app-cymonline**：在线设备与流量管理器。支持实时网速监控、累计流量统计、精细化设备限速及一键断网。
 
-#### luci-app-simple2fa (二次验证)
-*   **安全拦截**：基于 CGI 层的拦截机制，有效防止未授权登录。
-*   **全主题兼容**：通过动态 JS 注入，**支持所有 LuCI 主题**（bootstrap、argon、material 等）。
-*   **无感植入**：动态替换系统文件，**安装/卸载不残留**，不破坏原有系统文件。
-*   **中文界面**：全中文 UI，操作友好。
-*   **便捷管理**：
-    *   支持 **一键刷新密钥**。
-    *   支持 **一键复制密钥**。
-    *   支持 **二维码扫描** (Google Authenticator, Authy 等)。
-    *   
-<img width="1036" height="663" alt="image" src="https://github.com/user-attachments/assets/60b42060-d15c-4a10-858e-328db5977a20" />
-
-#### luci-app-cymfrpc (客户端)
-*   **最新核心**：自动编译最新版 `frpc` (v0.65.0+)。
-*   **多实例管理**：支持同时运行多个 frpc 进程，互不干扰。
-*   **纯文本配置**：所见即所得的配置方式，直接粘贴 `ini/toml/yaml`，支持所有 frp 高级特性。
-<img width="980" height="439" alt="image" src="https://github.com/user-attachments/assets/3c498e68-7142-4483-b110-d1667e8a00f0" />
-
-#### luci-app-cymfrps (服务端)
-*   **最新核心**：自动编译最新版 `frps` (v0.65.0+)。
-*   **多实例管理**：支持同时运行多个 frps 服务端进程。
-*   **纯文本配置**：支持 `ini/toml/yaml` 格式。
-<img width="958" height="371" alt="image" src="https://github.com/user-attachments/assets/16c1448b-a6bf-4771-9c98-fcc0b438d604" />
-
-#### luci-app-vpnrss (VPN 订阅生成器)
-*   **订阅聚合**：将多个零散节点聚合为一个订阅链接。
-*   **多协议支持**：支持 `vmess`, `vless`, `trojan`, `ss`, `hysteria2`。
-*   **多客户端适配**：自动生成 **Clash**, **Sing-box**, **Passwall/SSR+ (Base64)** 格式配置。
-*   **智能导入**：
-    *   支持**批量导入**：在一个输入框内粘贴多条链接（逗号或换行分隔）。
-    *   **智能命名**：自动为批量导入的节点添加序号（如 "香港 1", "香港 2"），避免重名。
-*   **安全保护**：支持 Token 访问控制，防止订阅被扫描。
-
-#### luci-app-cymonline (在线用户管理)
-*   **实时监控**：显示当前连接设备的 IP、MAC、主机名及实时上下行速率。
-*   **流量统计**：统计各设备的累计上传与下载流量。
-*   **限速管理**：基于 `tc` 和 `nftables` 实现对特定设备的带宽限制。
-*   **连接控制**：支持一键断开或禁用特定设备的网络访问。
+---
 
 ## 安装说明
 
-- **依赖**：`oath-toolkit`、`qrencode` (安装插件时会自动安装)
+### 准备工作
 
-### 方式一：通过 OpenWrt feeds 集成构建
-1. 在 OpenWrt (lede) 源码目录中添加本地 feed（推荐）：
-```bash
-echo "src-git findnrfeeds https://github.com/findnr/findnr-feeds.git" >> feeds.conf
-./scripts/feeds update findnrfeeds
-./scripts/feeds install luci-app-simple2fa
-./scripts/feeds install cymfrp
-./scripts/feeds install luci-app-cymfrpc
-./scripts/feeds install luci-app-cymfrps
-./scripts/feeds install luci-app-vpnrss
-./scripts/feeds install luci-app-cymonline
-```
+本插件包部分功能依赖底层系统工具，构建时会自动安装：
+- **luci-app-simple2fa** 依赖：`oath-toolkit` (验证计算) 和 `qrencode` (生成二维码)
+- **luci-app-cymonline** 依赖：`tc` (流量控制)、`kmod-sched-core` 和 `nftables`
+- **cymfrp** 依赖：`golang` (编译核心，构建系统需支持 Go 编译器)
 
-2. 选择并编译：
+### 方式一：集成到 OpenWrt 源码编译（推荐）
 
-```bash
-make menuconfig
-# LuCI -> Applications -> luci-app-simple2fa 选为 <*> 或 <M>
-# LuCI -> Applications -> luci-app-cymfrpc 选为 <*> 或 <M>
-# LuCI -> Applications -> luci-app-cymfrps 选为 <*> 或 <M>
-# LuCI -> Applications -> luci-app-cymonline 选为 <*> 或 <M>
-make -j$(nproc)
-```
+1. 进入你的 OpenWrt (或 LEDE) 源码根目录，在 `feeds.conf.default` 或 `feeds.conf` 中追加本仓库：
+   ```bash
+   echo "src-git findnrfeeds https://github.com/findnr/findnr-feeds.git" >> feeds.conf
+   ```
+2. 更新并安装 feeds：
+   ```bash
+   ./scripts/feeds update findnrfeeds
+   & ./scripts/feeds install -a -p findnrfeeds
+   ```
+3. 打开配置菜单选择插件：
+   ```bash
+   make menuconfig
+   ```
+   在菜单中勾选以下路径的插件（按需选择 `<*>` 编译进固件或 `<M>` 编译为单独 ipk）：
+   *   **LuCI -> Applications -> luci-app-simple2fa**
+   *   **LuCI -> Applications -> luci-app-cymfrpc**
+   *   **LuCI -> Applications -> luci-app-cymfrps**
+   *   **LuCI -> Applications -> luci-app-vpnrss**
+   *   **LuCI -> Applications -> luci-app-cymonline**
+4. 开始编译：
+   ```bash
+   make -j$(nproc)
+   ```
 
-### 方式二：单包本地编译并安装
+### 方式二：单独编译并安装 IPK
 
-1. 在 OpenWrt 源码目录中执行：
-
+如果你已拥有编译好的固件，只想编译本仓库的单包，在源码目录下执行：
 ```bash
 make package/feeds/findnrfeeds/luci-app-simple2fa/compile V=s
 make package/feeds/findnrfeeds/cymfrp/compile V=s
@@ -89,78 +58,142 @@ make package/feeds/findnrfeeds/luci-app-cymfrps/compile V=s
 make package/feeds/findnrfeeds/luci-app-vpnrss/compile V=s
 make package/feeds/findnrfeeds/luci-app-cymonline/compile V=s
 ```
-
-2. 将生成的 `.ipk` 拷贝到路由器并安装：
-
+编译完成后，将对应的 `.ipk` 文件上传到路由器的 `/tmp` 目录下，在路由器终端执行安装：
 ```bash
-scp bin/packages/*/findnrfeeds/luci-app-simple2fa_*.ipk root@<router>:/tmp/
-ssh root@<router> opkg update
-ssh root@<router> opkg install /tmp/luci-app-simple2fa_*.ipk
+opkg update
+opkg install /tmp/luci-app-simple2fa_*.ipk
 ```
 
-## 启用与使用
+---
 
-1.  **进入设置**：Web 界面 → 系统 (System) → 双因素认证 (Two-Factor Auth)。
-2.  **绑定设备**：
-    *   使用手机 APP 扫描屏幕上的二维码。
-    *   或者点击“复制”按钮获取密钥手动输入。
-3.  **启用功能**：勾选“启用二次验证”，点击“保存并应用”。
-4.  **验证登录**：注销后重新登录，输入账号密码后，会跳转到验证码输入框。
+## 插件详细使用教程
 
-#### luci-app-cymonline (在线用户管理)
-1.  **进入界面**：Web 界面 → 状态 (Status) → 在线用户 (Online Users)。
-2.  **查看状态**：实时查看连接设备的流量、IP、MAC 及备注。
-3.  **限速设置**：点击设备右侧的“限速”按钮，输入上下行带宽限制。
+### 1. 二次验证 (luci-app-simple2fa)
 
-## 故障排查
+本插件提供 CGI 级别的主动拦截。一旦启用，所有访问 `/cgi-bin/luci` 的登录请求都必须通过 TOTP 验证码校验。
 
-- **二维码不显示**：
-    *   请确认已安装 `qrencode`：`opkg install qrencode`。
-    *   检查 `/tmp/simple2fa_qr.err` 日志。
-- **验证一直失败**：
-    *   **时间同步**：TOTP 极其依赖时间，请确保路由器时间与手机时间误差在 30 秒以内。
-    *   尝试点击“刷新密钥”重新绑定。
-- **卸载后登录页异常**：
-    *   插件自带卸载恢复脚本。如果意外残留，请检查 `/www/cgi-bin/luci.bak` 是否存在，手动还原即可。
+#### ⚙️ 配置与使用步骤：
+1. **进入路径**：登录路由器 Web 界面 -> **系统 (System)** -> **二步验证 (Two-Factor Auth)**。
+2. **初始化密钥**：
+   - 首次进入该页面，系统会自动在后台生成一个高强度的随机 Base32 密钥。
+   - 页面会自动展示对应的**二维码**以及**明文密钥**。
+3. **绑定手机身份验证器**：
+   - 打开手机上的身份验证器 APP（如 Google Authenticator、Microsoft Authenticator、Authy 等）。
+   - 选择“扫描二维码”或“手动输入密钥”（将页面上的密钥复制并填入），绑定完成。
+4. **安全防锁死校验（关键）**：
+   - 为了防止由于系统时间不对、用户扫错码导致把自己锁在路由器外面，**在勾选“启用”前，必须先在“验证码”输入框中输入手机 APP 上当前生成的 6 位数字验证码**。
+   - 验证通过后，方可点击下方“保存并应用”。如果验证不匹配，系统会提示失败，确保配置的绝对安全。
+5. **登录测试**：
+   - 退出当前登录或清除浏览器 Cookie，再次访问路由器登录页面。
+   - 在输入正常的用户名和密码后，回车或点击登录，页面将切换或弹出 **验证码** 输入框。
+   - 输入身份验证器生成的 6 位实时验证码，即可成功进入管理后台。
 
-## 开发说明
+#### 🛠️ 故障排查与后台恢复：
+> [!WARNING]
+> 如果因为手机丢失、时间错乱导致完全无法登录路由器 Web 页面，可以通过 SSH 执行以下命令紧急关闭 2FA：
+> ```bash
+> # 1. 将配置中的 enabled 设为 0
+> uci set simple2fa.global.enabled='0'
+> uci commit simple2fa
+> # 2. 重启 simple2fa 服务（这会自动恢复系统原始的 luci CGI 程序和登录模板）
+> /etc/init.d/simple2fa restart
+> ```
 
-### 目录结构
+---
 
-所有 LuCI 包均采用标准 `luci.mk` 结构：
+### 2. FRP 穿透客户端 (luci-app-cymfrpc)
 
-```
-luci-app-xxx/
-├── Makefile          # 使用 luci.mk
-├── luasrc/           # Lua 源码
-│   ├── controller/   # 控制器
-│   ├── model/cbi/    # CBI 模型
-│   └── view/         # 视图模板 (如有)
-├── root/             # 其他文件 (config, init.d 等)
-└── po/               # 翻译文件
-    ├── templates/xxx.pot   # 翻译模板
-    └── zh_Hans/xxx.po      # 简体中文翻译
-```
+相比官方自带的版本，此客户端提供了更灵活的**多实例**支持与**纯文本配置文件**直接管理方式。
 
-### i18n 国际化
+#### ⚙️ 配置与使用步骤：
+1. **进入路径**：**服务 (Services)** -> **FRP 客户端**。
+2. **添加新实例**：
+   - 在“实例管理”中，点击“添加”按钮，新建一个配置实例（例如命名为 `nas_sync`）。
+3. **编写配置**：
+   - 勾选“启用”该实例。
+   - 在“配置类型”中选择你所使用的 frps 服务端支持的格式（支持 `ini` / `toml` / `yaml` 格式）。
+   - 在文本框中直接粘贴你的 frpc 配置内容，例如：
+     ```ini
+     [common]
+     server_addr = x.x.x.x
+     server_port = 7000
+     token = your_frp_token
 
-- 源码使用英文 `translate("English Text")`
-- 中文翻译通过 `po/zh_Hans/*.po` 提供
-- 编译时自动生成 `luci-i18n-xxx-zh-cn` 翻译包
+     [web_nas]
+     type = tcp
+     local_ip = 192.168.1.100
+     local_port = 80
+     remote_port = 8080
+     ```
+4. **保存并运行**：
+   - 点击“保存并应用”。插件会自动在后台为该实例生成独立的管理进程并运行。
+   - 你可以创建多个不同的实例分别连接到不同的 FRP 服务端，互不干扰。
 
-### Makefile 示例
+---
 
-```makefile
-include $(TOPDIR)/rules.mk
+### 3. FRP 穿透服务端 (luci-app-cymfrps)
 
-LUCI_TITLE:=Your App Title
-LUCI_DEPENDS:=+luci-base +luci-compat
-LUCI_PKGARCH:=all
+如果你有公网 IP 的 OpenWrt 路由器（如 VPS 软路由），可以使用此插件快速搭建多端口、多配置的 FRP 服务端。
 
-PKG_VERSION:=1.0.0
-PKG_RELEASE:=1
+#### ⚙️ 配置与使用步骤：
+1. **进入路径**：**服务 (Services)** -> **FRP 服务端**。
+2. **添加实例**：
+   - 新增一个实例，勾选“启用”。
+   - 在配置框中输入你的服务器监听规则，例如：
+     ```ini
+     [common]
+     bind_port = 7000
+     vhost_http_port = 8080
+     token = your_secure_token
+     ```
+3. **保存应用**：
+   - 点击“保存并应用”后，服务端进程将常驻后台监听指定端口。
 
-include $(TOPDIR)/feeds/luci/luci.mk
+---
 
-$(eval $(call BuildPackage,luci-app-xxx))
-```
+### 4. VPN 订阅生成器 (luci-app-vpnrss)
+
+该插件用于将零散的单个 VPN 节点链接，聚合成一个长期有效的自定义订阅地址，并支持智能去重、多平台配置格式转换。
+
+#### ⚙️ 配置与使用步骤：
+1. **进入路径**：**服务 (Services)** -> **VPN RSS 订阅生成**。
+2. **全局安全配置**：
+   - 勾选“启用”。
+   - 在“访问 Token”输入框中输入一个只有你自己知道的随机字符串（例如 `my_secure_sub_token_888`），以防止他人扫描你的订阅链接。
+3. **添加节点**：
+   - 点击“添加节点”按钮。
+   - **别名 (Alias)**：节点名称前缀（如 `HK-BGP`）。
+   - **节点链接 (Links)**：可以直接粘贴单条链接（如 `vmess://...`），也可以在一行内输入多条，或者每行一条进行批量导入。
+   - **智能重命名特性**：如果你在节点链接里粘贴了 5 个不同的 vmess 链接，并且别名填的是 `HK`，保存后插件会自动将其处理为 `HK 1`、`HK 2`、`HK 3`... 以防客户端内节点名称冲突。
+4. **生成与获取订阅链接**：
+   - 保存并应用配置后，你的专属订阅地址格式如下：
+     ```
+     http://<你的路由器IP>/cgi-bin/luci/vpnrss/subscribe?token=<你的Token>&client=<输出格式>
+     ```
+   - **`client` 参数支持的输出格式**：
+     - `clash` 或 `clash_meta`：直接输出符合 Clash 规范的 YAML 节点配置。
+     - `singbox`：输出符合 Sing-box 规范的 JSON 节点配置。
+     - `surge`：输出 Surge 代理行格式。
+     - `base64`（默认）：输出经过 Base64 编码的通用订阅节点列表，兼容 Passwall、SSR+、V2rayN 等工具。
+
+---
+
+### 5. 在线设备与流量管理器 (luci-app-cymonline)
+
+提供无侵入式的在线设备状态呈现，并能够对内网的各个终端实施强力的上行与下行带宽限制。
+
+#### ⚙️ 配置与使用步骤：
+1. **进入路径**：**状态 (Status)** -> **在线用户 (Online Users)**。
+2. **监控在线设备**：
+   - 页面会实时列出当前局域网内所有有活动流量的设备，展示其：
+     - 实时上行网速、实时下行网速。
+     - 累计上传流量、累计下载流量。
+     - IP 地址、MAC 地址和主机名。
+3. **管理设备（备注）**：
+   - 对于不知名的设备名称，可以点击设备行右侧的“编辑”或“备注”，输入自定义名称（如“客厅电视”），方便后续识别。
+4. **限速设置（QoS）**：
+   - 点击指定设备行右侧的“限速”按钮。
+   - 填写限制的 **最大上传速度** 和 **最大下载速度**（单位可选择 Mbps 或 Kbps）。
+   - 保存后，插件会直接调用系统的 `tc` 流量控制器在网卡队列上实施精细限速，对该设备的所有流量生效。
+5. **一键阻断网络**：
+   - 对于需要禁止联网的设备，可直接点击“禁用”按钮，插件会利用 `nftables` 规则阻断其经过 WAN 口的转发流量。
