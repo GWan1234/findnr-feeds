@@ -4,16 +4,14 @@
     console.log('[Simple2FA] Runtime injection active');
     var checkInterval = setInterval(function() {
         var form = document.querySelector('form');
-        var btn = document.querySelector('input[type="submit"], button[type="submit"]') || document.querySelector('button');
-        if (form && btn) {
+        var passwordField = document.querySelector('input[type="password"]');
+        if (form && passwordField) {
             clearInterval(checkInterval);
             if (document.getElementById('token_visible')) return;
 
             // 1. Create 2FA input field
             var tokenDiv = document.createElement('div');
             tokenDiv.className = 'cbi-value';
-            tokenDiv.style.margin = '15px 0';
-            tokenDiv.style.width = '100%';
             
             // Try to translate label using LuCI translation helper if available
             var labelText = '2FA Code';
@@ -26,23 +24,21 @@
                 placeholderText = L.tr('Leave empty if disabled');
             }
             
-            // Keep style clean and responsive
+            // Render inside cbi-value structure to match other fields perfectly
             tokenDiv.innerHTML = [
-                '<div style="display:flex; flex-direction:column; gap:5px; text-align:left;">',
-                '  <label style="font-weight:bold; color:inherit;">' + labelText + '</label>',
-                '  <input class="cbi-input-text input" type="text" id="token_visible" placeholder="' + placeholderText + '" autocomplete="off" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid rgba(0,0,0,0.2); border-radius:4px;" />',
+                '<label class="cbi-value-title" for="token_visible">' + labelText + '</label>',
+                '<div class="cbi-value-field">',
+                '  <input class="cbi-input-text" type="text" id="token_visible" placeholder="' + placeholderText + '" autocomplete="off" />',
                 '</div>'
             ].join('');
 
-            // 2. Find insertion point (before the login button)
-            var insertionPoint = btn;
-            if (btn.parentElement && btn.parentElement.tagName === 'DIV' && btn.parentElement !== form) {
-                insertionPoint = btn.parentElement;
-                if (insertionPoint.parentElement && insertionPoint.parentElement.tagName === 'DIV' && insertionPoint.parentElement !== form) {
-                    insertionPoint = insertionPoint.parentElement;
-                }
+            // 2. Find insertion point (directly inside <section>, right after password row)
+            var passwordRow = passwordField.closest('.cbi-value');
+            if (passwordRow && passwordRow.parentNode) {
+                passwordRow.parentNode.insertBefore(tokenDiv, passwordRow.nextSibling);
+            } else {
+                passwordField.parentNode.insertBefore(tokenDiv, passwordField.nextSibling);
             }
-            insertionPoint.parentNode.insertBefore(tokenDiv, insertionPoint);
 
             // 3. Inject error message if redirected with error
             if (window.location.search.indexOf('simple2fa_err=1') !== -1) {
